@@ -1,0 +1,18 @@
+[Unit]
+Description=Plop Catcher leaderboard API
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/plop-scores/plop_scores.py
+Environment=PORT=8787
+DynamicUser=yes
+StateDirectory=plop-scores
+Restart=on-failure
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target

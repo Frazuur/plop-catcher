@@ -30,6 +30,19 @@ button{font:inherit;font-size:30px;padding:14px 38px;border:0;border-radius:999p
 button:hover{transform:translateY(-3px) scale(1.04);box-shadow:0 9px 0 #2a1708,0 18px 28px rgba(0,0,0,.4)}
 button:active{transform:translateY(3px);box-shadow:0 2px 0 #2a1708,0 6px 12px rgba(0,0,0,.4)}
 button:focus-visible{outline:4px solid var(--gold);outline-offset:4px}
+#submit{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+#name{font:inherit;font-size:24px;width:min(220px,60vw);padding:10px 18px;border-radius:999px;border:3px solid #8f5a2e;background:var(--cream);color:var(--dark);caret-color:var(--brown);outline:none}
+#name:focus{border-color:var(--gold);box-shadow:0 0 0 4px rgba(242,194,48,.35)}
+#name::placeholder{color:#9a7a5a}
+#send{font-size:22px;padding:10px 24px}
+#note{font-size:18px;color:var(--gold);min-height:1em}
+#board{list-style:none;padding:12px 18px;width:min(340px,90vw);max-height:32vh;overflow:auto;background:rgba(42,23,8,.72);border-radius:18px;font-size:20px;text-align:left;box-shadow:0 10px 30px rgba(0,0,0,.4);scrollbar-color:#8f5a2e transparent}
+#board li{display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px solid rgba(255,248,230,.1)}
+#board li:last-child{border:0}
+#board li span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#board li b{font-weight:normal;color:var(--gold);font-variant-numeric:tabular-nums}
+#board li.me{color:var(--gold)}
+#board .head{justify-content:center;color:var(--gold);font-size:22px;border:0}
 .hidden{display:none!important}
 </style>
 </head>
@@ -43,7 +56,13 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:4px}
 <div id="overlay">
   <h1 id="title">Plop Catcher</h1>
   <p id="msg">Slide the toilet under the falling poos. Golden ones are worth five. Catch them in a row to fill the combo meter. Miss three and the floor's ruined.</p>
+  <form id="submit" class="hidden" autocomplete="off">
+    <input id="name" maxlength="16" placeholder="Your name" aria-label="Your name" enterkeyhint="send">
+    <button id="send" type="submit">Post score</button>
+  </form>
+  <p id="note" class="hidden" role="status"></p>
   <button id="go">Start plopping</button>
+  <ol id="board" class="hidden"></ol>
 </div>
 <script>
 const c=document.getElementById('c'),x=c.getContext('2d'),$=id=>document.getElementById(id);
@@ -205,7 +224,7 @@ function step(ts){
   for(const p of poos){p.y+=p.v*ts;p.r+=p.vr*ts;p.trail.push([p.x,p.y]);if(p.trail.length>10)p.trail.shift();
     if(p.gold&&Math.random()<.5*ts)bits.push({x:p.x+(Math.random()-.5)*30,y:p.y+(Math.random()-.5)*20,vx:0,vy:-.4,l:.9,col:'255,226,122',r:2+Math.random()*2,glow:1});
     if(p.deco){if(p.y>H+60)p.done=1;continue}
-    if(!p.done&&p.y>CATCH_Y()&&p.y<FLOOR()+6&&Math.abs(p.x-toiletX)<95*S){p.done=1;combo++;const mult=combo>=10?3:combo>=5?2:1,pts=(p.gold?5:1)*mult;score+=pts;squash=1;zoom=Math.min(.04,zoom+.015);
+    if(!p.done&&p.y>CATCH_Y()&&p.y<FLOOR()+6&&Math.abs(p.x-toiletX)<95*S){p.done=1;combo++;catches++;const mult=combo>=10?3:combo>=5?2:1,pts=(p.gold?5:1)*mult;score+=pts;squash=1;zoom=Math.min(.04,zoom+.015);
       burst(toiletX,FLOOR()-46,p.gold?'255,214,90':'150,215,235',p.gold?60:22,p.gold?13:8,p.gold);rings.push({x:toiletX,y:FLOOR()-46,r:10,l:1});
       addTxt(toiletX,FLOOR()-140,(p.gold?'GOLDEN! ':yells[Math.random()*yells.length|0]+' ')+'+'+pts,p.gold?'#f2c230':'#fff8e6',p.gold?46:32);
       if(p.gold){hitstop=6;slowmo=40;flash=1;flashCol='242,194,48';shake=8}
@@ -274,13 +293,31 @@ function loop(now){const dt=Math.min(3,(now-last)/16.67);last=now;t+=dt;
   shake*=Math.pow(.86,dt);flash*=Math.pow(.88,dt);zoom*=Math.pow(.9,dt);
   if(hitstop>0)hitstop-=dt;else{let ts=dt;if(slowmo>0){slowmo-=dt;ts*=.4}step(ts)}
   draw();requestAnimationFrame(loop)}
-function end(){running=false;if(A)setTimeout(sfx.flush,250);if(score>best){best=score;try{localStorage.plopBest=best}catch(e){}}
+/* ---------- leaderboard ---------- */
+const API='https://theshow-vps.pleco-rooster.ts.net:8443/scores';
+let catches=0,runStart=0,lastName=(()=>{try{return localStorage.plopName||''}catch(e){return ''}})();
+function esc(s){const d=document.createElement('span');d.textContent=s;return d.innerHTML}
+function showBoard(rows){const b=$('board');if(!rows||!rows.length){b.classList.add('hidden');return}
+  b.innerHTML='<li class="head">Top ploppers</li>'+rows.map((r,i)=>`<li class="${r.name.toLowerCase()===lastName.toLowerCase()?'me':''}"><span>${i+1}. ${esc(r.name)}</span><b>${r.score}</b></li>`).join('');b.classList.remove('hidden')}
+function loadBoard(){fetch(API).then(r=>r.json()).then(showBoard).catch(()=>{})}
+function note(t){$('note').textContent=t;$('note').classList.toggle('hidden',!t)}
+$('submit').onsubmit=e=>{e.preventDefault();const name=$('name').value.trim();if(!name){$('name').focus();return}
+  lastName=name;try{localStorage.plopName=name}catch(e){}
+  $('send').disabled=true;note('Posting…');
+  fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,score:lastRun.score,catches:lastRun.catches,ms:lastRun.ms})})
+    .then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not post');showBoard(d);note('Posted! You\'re on the board.');$('submit').classList.add('hidden')})
+    .catch(err=>{note(err.message&&err.message!=='Failed to fetch'?err.message:'Couldn\'t reach the scoreboard. Try again in a moment.');$('send').disabled=false})};
+$('name').addEventListener('keydown',e=>e.stopPropagation());
+let lastRun={score:0,catches:0,ms:0};
+function end(){running=false;lastRun={score,catches,ms:Math.round(performance.now()-runStart)};
+  if(score>0){$('name').value=lastName;$('send').disabled=false;$('submit').classList.remove('hidden');note('')}else{$('submit').classList.add('hidden');note('')}
+  loadBoard();if(A)setTimeout(sfx.flush,250);if(score>best){best=score;try{localStorage.plopBest=best}catch(e){}}
   poos=poos.filter(p=>p.deco);
   $('title').textContent='What a mess';$('msg').textContent='You caught '+score+' plops. Best: '+best+'. Grab the mop and go again.';$('go').textContent='Flush and retry';$('overlay').classList.remove('hidden')}
-$('go').onclick=()=>{reset();poos=[];running=true;startMusic();$('overlay').classList.add('hidden');$('go').blur()};
+$('go').onclick=()=>{reset();poos=[];catches=0;runStart=performance.now();running=true;$('submit').classList.add('hidden');$('board').classList.add('hidden');note('');startMusic();$('overlay').classList.add('hidden');$('go').blur()};
 addEventListener('keydown',e=>{if(!running&&(e.key==='Enter'||e.key===' ')){e.preventDefault();$('go').click()}});
 if(matchMedia('(pointer:coarse)').matches)$('msg').textContent='Drag your finger anywhere to slide the toilet under the falling poos. Golden ones are worth five. Catch them in a row to fill the combo meter. Miss three and the floor\'s ruined.';
-rs();toiletX=tx=W/2;hud();requestAnimationFrame(loop);
+rs();toiletX=tx=W/2;hud();loadBoard();requestAnimationFrame(loop);
 </script>
 </body>
 </html>
