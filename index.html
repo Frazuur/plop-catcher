@@ -101,9 +101,10 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:4px}
   <button id="emma" type="button" aria-pressed="false">Emma mode: off</button>
   <ol id="board" class="hidden"></ol>
   <details id="ver">
-    <summary>v1.7 · What's new</summary>
+    <summary>v1.7.1 · What's new</summary>
     <dl>
-      <dt>v1.7 · 8 Nov 2026</dt><dd>Emma mode: tap the button on the start screen and Emma falls instead of the babies. Don't catch her either.</dd>
+      <dt>v1.7.1 · 8 Nov 2026</dt><dd>That's Cole, not Emma. Emma mode now gets his name right.</dd>
+      <dt>v1.7 · 8 Nov 2026</dt><dd>Emma mode: tap the button on the start screen and Cole falls instead of the babies. Don't catch him either.</dd>
       <dt>v1.6 · 8 Nov 2026</dt><dd>Things you mustn't flush: pads, baby wipes, goldfish and babies fall too, and catching one costs points. Poos come in tiny, normal and chonker. It keeps getting harder the longer you last. Dark pink title.</dd>
       <dt>v1.5</dt><dd>The game tells you when a new version is out, with a button to load it. It never interrupts a run.</dd>
       <dt>v1.4</dt><dd>The bathroom is pink now. Added this changelog.</dd>
@@ -280,7 +281,7 @@ function drawHazard(h,s){
     x.strokeStyle='#8a2c06';x.lineWidth=1.4;x.beginPath();x.arc(-21,3,2,-.6,1.6);x.stroke();
     x.strokeStyle='rgba(220,245,255,.85)';x.lineWidth=1.2;[[-28,-10,3],[-33,-19,2]].forEach(([a,b,r])=>{x.beginPath();x.arc(a,b-(t*.3%6),r,0,7);x.stroke()})}
   else if(emma&&EMMA.complete&&EMMA.naturalWidth){
-    // Emma mode: her cut-out face, tilting as it falls
+    // Emma mode: Cole's cut-out face, tilting as it falls
     x.rotate(wob*.14);x.drawImage(EMMA,-23,-28,46,51)}
   else{
     // baby in a nappy, arms waving, dummy in
@@ -347,7 +348,7 @@ function step(ts){
     if(!h.done&&h.y>CATCH_Y()&&h.y<FLOOR()+6&&Math.abs(h.x-toiletX)<HAZ_W()){h.done=1;const z=HAZ[h.kind],lost=Math.min(score,z.pts);score-=lost;combo=0;squash=1;
       shake=h.kind==='baby'?26:16;hitstop=5;flash=1;flashCol='230,40,60';
       burst(toiletX,FLOOR()-60,'235,70,90',30,10);rings.push({x:toiletX,y:FLOOR()-46,r:10,l:1});
-      addTxt(toiletX,FLOOR()-150,(h.kind==='baby'&&emma?'NOT EMMA!':z.say)+' −'+z.pts,'#ff5a6e',h.kind==='baby'?52:40);
+      addTxt(toiletX,FLOOR()-150,(h.kind==='baby'&&emma?'NOT COLE!':z.say)+' −'+z.pts,'#ff5a6e',h.kind==='baby'?52:40);
       if(A)sfx.bad();hud();popScore()}
     // dodged it: it slips away harmlessly
     if(!h.done&&h.y>FLOOR()-10){h.done=1;burst(h.x,FLOOR()-10,'255,240,250',14,5,1);
@@ -450,14 +451,14 @@ function end(){running=false;lastRun={score,catches,ms:Math.round(performance.no
 $('go').onclick=()=>{reset();poos=[];catches=0;runStart=performance.now();running=true;$('update').classList.add('hidden');$('submit').classList.add('hidden');$('board').classList.add('hidden');note('');startMusic();$('overlay').classList.add('hidden');$('go').blur()};
 addEventListener('keydown',e=>{if(e.target.id==='emma')return;if(!running&&(e.key==='Enter'||e.key===' ')){e.preventDefault();$('go').click()}});
 if(matchMedia('(pointer:coarse)').matches)$('msg').textContent='Drag your finger anywhere to slide the toilet under the falling poos. Tiny ones are worth two, golden ones five. Dodge the pads, wipes, goldfish and babies: catching them costs points. Miss three poos and the floor\'s ruined.';
-/* ---------- Emma mode: Emma's face falls instead of the babies ---------- */
+/* ---------- Emma mode: Cole's face falls instead of the babies ---------- */
 function setEmma(on){emma=on;try{localStorage.plopEmma=on?'1':''}catch(e){}
   const b=$('emma');b.setAttribute('aria-pressed',on);b.textContent='Emma mode: '+(on?'on':'off');
-  const m=$('msg');m.textContent=on?m.textContent.replace('and babies','and Emmas'):m.textContent.replace('and Emmas','and babies')}
+  const m=$('msg');m.textContent=on?m.textContent.replace('and babies','and Coles'):m.textContent.replace('and Coles','and babies')}
 $('emma').onclick=()=>setEmma(!emma);
 setEmma(emma);
 /* ---------- update check: version.json sits next to the page; never interrupts a run ---------- */
-const VERSION='1.7';let newVer=null;
+const VERSION='1.7.1';let newVer=null;
 function showUpdate(){if(!newVer||running||!$('update').classList.contains('hidden'))return;$('upmsg').textContent='Version '+newVer+' is out';$('update').classList.remove('hidden')}
 function checkUpdate(){if(location.protocol==='file:')return;fetch('version.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.version&&d.version!==VERSION){newVer=d.version;showUpdate()}}).catch(()=>{})}
 $('upgo').onclick=()=>location.reload();
