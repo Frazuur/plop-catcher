@@ -3,6 +3,8 @@
 
 GET  /scores          -> top 15, best score per name
 POST /scores          {"name": str, "score": int, "catches": int, "ms": int}
+POST /ideas           {"idea": str, "name": str (optional)}  game ideas from the arcade page; never served back
+`python3 plop_scores.py ideas` prints the saved ideas (run with STATE_DIRECTORY set to the DB folder).
 """
 import json, os, re, sqlite3, time, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -18,6 +20,7 @@ hits = {}  # ip -> [timestamps]
 def db():
     con = sqlite3.connect(DB)
     con.execute("create table if not exists scores(id integer primary key, name text, score int, catches int, ms int, at int)")
+    con.execute("create table if not exists ideas(id integer primary key, idea text, name text, at int)")
     return con
 
 def top():
@@ -26,15 +29,28 @@ def top():
             "select name, max(score) s from scores group by lower(name) order by s desc, min(at) asc limit 15").fetchall()
     return [{"name": n, "score": s} for n, s in rows]
 
-def limited(ip):
-    now = time.time()
+def limited(ip, kind="scores", most=6, window=60):
+    now, key = time.time(), (kind, ip)
     with lock:
-        ts = [t for t in hits.get(ip, []) if now - t < 60]
+        ts = [t for t in hits.get(key, []) if now - t < window]
         ts.append(now)
-        hits[ip] = ts
+        hits[key] = ts
         if len(hits) > 5000:
             hits.clear()
-    return len(ts) > 6
+    return len(ts) > most
+
+CTRL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+def add_idea(d):
+    idea = CTRL_RE.sub("", str(d.get("idea", ""))).strip()[:600]
+    name = NAME_RE.sub("", str(d.get("name", "") or "")).strip()[:24]
+    if len(idea) < 3:
+        return False
+    with lock, db() as con:
+        if con.execute("select count(*) from ideas").fetchone()[0] >= 5000:
+            return False
+        con.execute("insert into ideas(idea, name, at) values(?,?,?)", (idea, name, int(time.time())))
+    return True
 
 class H(BaseHTTPRequestHandler):
     server_version = "plop"
@@ -68,9 +84,20 @@ class H(BaseHTTPRequestHandler):
         self.reply(200, top())
 
     def do_POST(self):
-        if self.path != "/scores":
+        if self.path not in ("/scores", "/ideas"):
             return self.reply(404, {"error": "not found"})
         ip = (self.headers.get("X-Forwarded-For") or self.client_address[0]).split(",")[0].strip()
+        if self.path == "/ideas":
+            if limited(ip, "ideas", 5, 600):
+                return self.reply(429, {"error": "That's a lot of ideas! Try again in a few minutes."})
+            try:
+                n = int(self.headers.get("Content-Length", "0"))
+                if n > 4096:
+                    raise ValueError
+                ok = add_idea(json.loads(self.rfile.read(n)))
+            except Exception:
+                ok = False
+            return self.reply(200, {"ok": True}) if ok else self.reply(400, {"error": "Write a few words about your idea first."})
         if limited(ip):
             return self.reply(429, {"error": "Slow down a bit, then try again."})
         try:
@@ -95,5 +122,11 @@ class H(BaseHTTPRequestHandler):
         pass
 
 if __name__ == "__main__":
+    import sys
+    if sys.argv[1:] == ["ideas"]:
+        with db() as con:
+            for i, idea, name, at in con.execute("select id, idea, name, at from ideas order by at"):
+                print(f"#{i} {time.strftime('%Y-%m-%d %H:%M', time.localtime(at))} {name or 'anon'}: {idea}")
+        sys.exit()
     db().close()
     ThreadingHTTPServer(("127.0.0.1", PORT), H).serve_forever()

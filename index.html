@@ -23,7 +23,7 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none;cursor:none}
 #lives{font-size:clamp(22px,4vw,34px)}
 #mute{pointer-events:auto;font-size:17px;padding:6px 16px}
 #overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;padding:16px;background:radial-gradient(ellipse at center,rgba(20,12,4,.25),rgba(20,12,4,.7))}
-#overlay h1{font-size:clamp(56px,13vw,132px);line-height:.92;color:var(--gold);text-shadow:0 5px 0 #8a5a10,0 10px 0 var(--dark),0 20px 40px rgba(0,0,0,.6);animation:bob 1.8s ease-in-out infinite}
+#overlay h1{font-size:clamp(56px,13vw,132px);line-height:.92;color:#d81b60;text-shadow:0 5px 0 #6b0d33,0 10px 0 var(--dark),0 20px 40px rgba(0,0,0,.6);animation:bob 1.8s ease-in-out infinite}
 @keyframes bob{50%{transform:translateY(-10px) rotate(-2deg) scale(1.02)}}
 #overlay p{font-size:clamp(18px,3.4vw,24px);max-width:32ch;text-shadow:0 2px 0 var(--dark),0 4px 12px rgba(0,0,0,.6)}
 button{font:inherit;font-size:30px;padding:14px 38px;border:0;border-radius:999px;background:linear-gradient(180deg,#8f5a2e,#5a3318);color:var(--cream);cursor:pointer;box-shadow:0 6px 0 #2a1708,0 14px 24px rgba(0,0,0,.4);transition:transform .15s cubic-bezier(.16,1,.3,1),box-shadow .15s}
@@ -88,7 +88,7 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:4px}
 <div id="update" class="hidden" role="status"><span id="upmsg"></span><button id="upgo">Update</button></div>
 <div id="overlay">
   <h1 id="title">Plop Catcher</h1>
-  <p id="msg">Slide the toilet under the falling poos. Golden ones are worth five. Catch them in a row to fill the combo meter. Miss three and the floor's ruined.</p>
+  <p id="msg">Slide the toilet under the falling poos. Tiny ones are worth two, golden ones five. Dodge the pads, wipes, goldfish and babies: catching them costs points. Miss three poos and the floor's ruined.</p>
   <form id="submit" class="hidden" autocomplete="off">
     <input id="name" maxlength="16" placeholder="Your name" aria-label="Your name" enterkeyhint="send">
     <button id="send" type="submit">Post score</button>
@@ -97,9 +97,10 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:4px}
   <button id="go">Start plopping</button>
   <ol id="board" class="hidden"></ol>
   <details id="ver">
-    <summary>v1.5 · What's new</summary>
+    <summary>v1.6 · What's new</summary>
     <dl>
-      <dt>v1.5 · 8 Nov 2026</dt><dd>The game tells you when a new version is out, with a button to load it. It never interrupts a run.</dd>
+      <dt>v1.6 · 8 Nov 2026</dt><dd>Things you mustn't flush: pads, baby wipes, goldfish and babies fall too, and catching one costs points. Poos come in tiny, normal and chonker. It keeps getting harder the longer you last. Dark pink title.</dd>
+      <dt>v1.5</dt><dd>The game tells you when a new version is out, with a button to load it. It never interrupts a run.</dd>
       <dt>v1.4</dt><dd>The bathroom is pink now. Added this changelog.</dd>
       <dt>v1.3</dt><dd>Global leaderboard: post your score at the end of a run. Better layout on phones. Difficulty levels off past about 300, so high scores stay catchable.</dd>
       <dt>v1.2</dt><dd>Play on phones by dragging anywhere. The whole toilet catches, lid to base.</dd>
@@ -149,7 +150,7 @@ function buildBG(){
 }
 
 /* ---------- state ---------- */
-let poos=[],splats=[],bits=[],flies=[],texts=[],rings=[],motes=[],score=0,miss=0,combo=0,t=0,spawn=0,running=false,tx,toiletX,squash=0,shake=0,flash=0,flashCol='242,194,48',
+let poos=[],hazards=[],hazSpawn=200,splats=[],bits=[],flies=[],texts=[],rings=[],motes=[],score=0,miss=0,combo=0,t=0,spawn=0,running=false,tx,toiletX,squash=0,shake=0,flash=0,flashCol='242,194,48',
 hitstop=0,slowmo=0,zoom=0,best=+(()=>{try{return localStorage.plopBest||0}catch(e){return 0}})();
 const keys={};addEventListener('keydown',e=>keys[e.key]=1);addEventListener('keyup',e=>keys[e.key]=0);
 // mouse: toilet follows the cursor. touch: drag anywhere and the toilet moves with your finger (so your thumb never covers it)
@@ -173,7 +174,9 @@ const sfx={
   combo(){[0,.08,.16].forEach((d,i)=>tone([392,523,784][i],.25,'sawtooth',.12,A.currentTime+d))},
   splat(){noise(.35,.6,0,600);tone(180,.3,'sawtooth',.25,0,50)},
   fart(){const o=A.createOscillator(),g=A.createGain(),l=A.createOscillator(),lg=A.createGain(),n=A.currentTime;o.type='sawtooth';o.frequency.setValueAtTime(110,n);o.frequency.exponentialRampToValueAtTime(60,n+.9);l.frequency.value=28;lg.gain.value=30;l.connect(lg);lg.connect(o.frequency);g.gain.setValueAtTime(.35,n);g.gain.exponentialRampToValueAtTime(.001,n+.9);o.connect(g);g.connect(master);o.start(n);l.start(n);o.stop(n+1);l.stop(n+1)},
-  flush(){noise(1.4,.5,0,900);tone(300,1.2,'sine',.15,0,60)}
+  flush(){noise(1.4,.5,0,900);tone(300,1.2,'sine',.15,0,60)},
+  bad(){[0,.18,.36].forEach((d,i)=>tone([311,294,262][i],.2,'sawtooth',.16,A.currentTime+d));tone(240,.7,'sawtooth',.14,A.currentTime+.54,90);noise(.12,.25,0,1800)},
+  phew(){tone(880,.12,'sine',.08,0,1100)}
 };
 const bass=[55,0,55,65.4,73.4,0,65.4,0,49,0,49,58.3,65.4,0,58.3,0];
 const mel=[0,440,0,392,349,0,392,0,0,330,349,0,392,0,523,0];
@@ -192,9 +195,16 @@ $('mute').onclick=e=>{musicOn=!musicOn;e.target.textContent=musicOn?'Music on':'
 
 /* ---------- fair spawning ---------- */
 function landFrame(p){return t+(FLOOR()-p.y)/p.v}
+function enterFrame(p){return t+(CATCH_Y()-p.y)/p.v}
+// half-width of the catch zone: big poos are easier to bag, small ones need precision
+const catchW=p=>(60+35*(p.size||1))*S, HAZ_W=()=>66*S;
+// does catching poo p force the toilet into hazard h? (both in the catch zone at overlapping times, close together)
+function clash(p,h){return Math.abs(p.x-h.x)<catchW(p)+HAZ_W()+10*S&&enterFrame(p)-8<landFrame(h)&&enterFrame(h)-8<landFrame(p)}
+// keeps getting harder for ever: an early ramp plus slow log growth, always capped by the fairness checks below
+function heat(){return{ramp:1-Math.exp(-score/150),grow:Math.log1p(score/120),hs:Math.max(.75,Math.min(1.25,H/800))}}
 function spawnPoo(){
-  // difficulty ramps quickly early, then levels off so high scores stay playable; speed scales with screen height
-  const ramp=1-Math.exp(-score/150),hs=Math.max(.75,Math.min(1.25,H/800)),p={x:60*S+Math.random()*(W-120*S),y:-50,v:(3+6*ramp+Math.random()*(1.5+2*ramp))*hs,r:Math.random()*6,vr:(Math.random()-.5)*.1,gold:Math.random()<.08,trail:[]};
+  const {ramp,grow,hs}=heat(),k=Math.random(),size=k<.25?.72:k<.78?1:1.4,
+    p={x:60*S+Math.random()*(W-120*S),y:-50,v:(3+6*ramp+1.7*grow+Math.random()*(1.5+2*ramp))*hs*(size<1?1.08:1),r:Math.random()*6,vr:(Math.random()-.5)*.1,gold:Math.random()<.08,size,trail:[]};
   const lf=landFrame(p);
   // every pair of poos must be catchable in sequence: clamp x so the toilet can get there in time
   for(let pass=0;pass<3;pass++)for(const q of poos){if(q.done)continue;const gap=Math.abs(lf-landFrame(q)),allow=REACH+gap*SPEED*.7;
@@ -202,7 +212,16 @@ function spawnPoo(){
   p.x=Math.max(60,Math.min(W-60,p.x));
   // if two poos would land almost together far apart, push this one later by slowing it
   for(const q of poos){if(!q.done&&Math.abs(landFrame(p)-landFrame(q))<10&&Math.abs(p.x-q.x)>REACH)p.v=Math.max(1.6,p.v*.7)}
+  // never make a poo you can only catch by also catching a hazard: hold it back until the hazard has passed
+  for(let tries=0;tries<5&&hazards.some(h=>!h.done&&!h.deco&&clash(p,h));tries++)p.y-=60*S+p.v*14;
   poos.push(p)}
+const HAZ={pad:{pts:5,say:'EWW, A PAD!'},wipes:{pts:5,say:'NOT FLUSHABLE!'},fish:{pts:8,say:'SORRY GOLDIE!'},baby:{pts:15,say:'NOT THE BABY!'}};
+function spawnHazard(deco){
+  const {ramp,grow,hs}=heat(),kinds=Object.keys(HAZ),kind=kinds[Math.random()*kinds.length|0],
+    h={kind,y:-60,v:deco?2+Math.random()*2.5:(2.6+4.5*ramp+1.2*grow+Math.random()*2)*hs,r:Math.random()*6,vr:(Math.random()-.5)*.06,deco,x:0,trail:[]};
+  if(deco){h.x=Math.random()*W;hazards.push(h);return}
+  // only drop it where dodging it never costs you a poo
+  for(let i=0;i<14;i++){h.x=60*S+Math.random()*(W-120*S);if(!poos.some(p=>!p.done&&!p.deco&&clash(p,h))){hazards.push(h);return}}}
 
 /* ---------- drawing ---------- */
 function blob(cx,cy,rx,ry,base,dark,hi){
@@ -220,6 +239,52 @@ function drawPoo(px,py,s,gold,rot,sq,scared){
     if(!blink){x.fillStyle='#120802';x.beginPath();x.arc(e+.8,-1.2+(scared?1.4:0),scared?1.4:1.9,0,7);x.fill();x.fillStyle='#fff';x.beginPath();x.arc(e+.2,-2.4,.8,0,7);x.fill()}});
   if(scared){x.fillStyle='#2a1004';x.beginPath();x.ellipse(0,6,3,3.8,0,0,7);x.fill();x.fillStyle='rgba(140,200,240,.9)';x.beginPath();x.ellipse(11,-10,1.8,3,0,0,7);x.fill()}
   else{x.strokeStyle='#120802';x.lineWidth=1.6;x.beginPath();x.arc(0,4,4,.2,Math.PI-.2);x.stroke();x.fillStyle='rgba(230,110,110,.35)';x.beginPath();x.ellipse(-11,3,3,1.6,0,0,7);x.ellipse(11,3,3,1.6,0,0,7);x.fill()}
+  x.restore()}
+
+function rr(x0,y0,w,h,r,fill,stroke){x.beginPath();x.roundRect(x0,y0,w,h,r);x.fillStyle=fill;x.fill();if(stroke){x.strokeStyle=stroke;x.lineWidth=1.5;x.stroke()}}
+function lin(x0,y0,x1,y1,a,b){const g=x.createLinearGradient(x0,y0,x1,y1);g.addColorStop(0,a);g.addColorStop(1,b);return g}
+function drawHazard(h,s){
+  const wob=Math.sin(t*.25+h.r*3);
+  x.save();x.translate(h.x,h.y);
+  // warning halo so you can read "don't catch" at speed
+  if(!h.deco){x.save();x.globalCompositeOperation='lighter';const g=x.createRadialGradient(0,0,6*s,0,0,48*s);g.addColorStop(0,'rgba(255,60,60,.32)');g.addColorStop(1,'rgba(255,60,60,0)');x.fillStyle=g;x.beginPath();x.arc(0,0,48*s,0,7);x.fill();x.restore()}
+  x.rotate(Math.sin(h.r)*.35);x.scale(s,s);
+  x.fillStyle='rgba(0,0,0,.16)';x.beginPath();x.ellipse(2,20,24,5,0,0,7);x.fill();
+  if(h.kind==='pad'){
+    // wings, then the quilted body with a blue channel
+    x.fillStyle=lin(0,-8,0,8,'#ffffff','#dfe6ee');x.beginPath();x.moveTo(-8,-4);x.quadraticCurveTo(0,-20,8,-4);x.lineTo(8,4);x.quadraticCurveTo(0,20,-8,4);x.fill();
+    rr(-30,-11,60,22,11,lin(0,-11,0,11,'#ffffff','#e3e9f0'),'rgba(120,140,160,.5)');
+    rr(-20,-4,40,8,4,lin(0,-4,0,4,'#a8d8f6','#5fb0e6'));
+    x.fillStyle='rgba(255,255,255,.8)';for(let i=-16;i<=16;i+=8){x.beginPath();x.arc(i,0,1.3,0,7);x.fill()}
+    x.fillStyle='rgba(255,255,255,.9)';x.beginPath();x.ellipse(-18,-7,7,1.6,0,0,7);x.fill()}
+  else if(h.kind==='wipes'){
+    // soft pack with a sticker label and a wipe poking out
+    x.fillStyle=lin(0,-26,0,-12,'#ffffff','#e8eef2');x.beginPath();x.moveTo(-9,-12);x.quadraticCurveTo(-6+wob*2,-28,2,-26);x.quadraticCurveTo(10,-24,9,-12);x.fill();
+    rr(-28,-15,56,32,10,lin(0,-15,0,17,'#8fd9c8','#3e9f8e'),'rgba(20,80,70,.5)');
+    rr(-16,-11,32,9,4.5,'#f6fbf9');
+    rr(-17,1,34,11,5,'#fff');x.fillStyle='#e05a8a';x.font='bold 7px Nunito,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText('WIPES',0,6.8);
+    x.fillStyle='rgba(255,255,255,.55)';x.beginPath();x.ellipse(-20,-8,4,2,-.5,0,7);x.fill()}
+  else if(h.kind==='fish'){
+    // goldfish with a flapping tail and a couple of bubbles
+    x.save();x.translate(18,0);x.rotate(wob*.35);x.fillStyle=lin(0,-12,14,12,'#ffb347','#e8641b');x.beginPath();x.moveTo(0,0);x.quadraticCurveTo(14,-16,20,-12);x.quadraticCurveTo(12,0,20,12);x.quadraticCurveTo(14,16,0,0);x.fill();x.restore();
+    x.fillStyle='#f08a2a';x.beginPath();x.moveTo(-4,-12);x.quadraticCurveTo(4,-22,10,-11);x.fill();
+    const g=x.createRadialGradient(-8,-5,1,-2,0,22);g.addColorStop(0,'#ffd27a');g.addColorStop(.5,'#ff9a2e');g.addColorStop(1,'#d2510f');x.fillStyle=g;x.beginPath();x.ellipse(-2,0,22,13,0,0,7);x.fill();
+    x.strokeStyle='rgba(200,70,10,.45)';x.lineWidth=1.2;for(let i=0;i<3;i++){x.beginPath();x.arc(2+i*5,0,7,-1,1);x.stroke()}
+    x.fillStyle='#fff';x.beginPath();x.arc(-13,-3,4.2,0,7);x.fill();x.fillStyle='#111';x.beginPath();x.arc(-14,-3,2.2,0,7);x.fill();x.fillStyle='#fff';x.beginPath();x.arc(-14.6,-4,.8,0,7);x.fill();
+    x.strokeStyle='#8a2c06';x.lineWidth=1.4;x.beginPath();x.arc(-21,3,2,-.6,1.6);x.stroke();
+    x.strokeStyle='rgba(220,245,255,.85)';x.lineWidth=1.2;[[-28,-10,3],[-33,-19,2]].forEach(([a,b,r])=>{x.beginPath();x.arc(a,b-(t*.3%6),r,0,7);x.stroke()})}
+  else{
+    // baby in a nappy, arms waving, dummy in
+    x.strokeStyle='#f2b48e';x.lineWidth=6;x.lineCap='round';
+    x.beginPath();x.moveTo(-10,2);x.lineTo(-20,-6+wob*5);x.moveTo(10,2);x.lineTo(20,-6-wob*5);x.moveTo(-6,14);x.lineTo(-10,22);x.moveTo(6,14);x.lineTo(10,22);x.stroke();
+    let g=x.createRadialGradient(-3,2,1,0,6,14);g.addColorStop(0,'#ffd9c0');g.addColorStop(1,'#eaa47e');x.fillStyle=g;x.beginPath();x.ellipse(0,6,11,10,0,0,7);x.fill();
+    x.fillStyle=lin(0,8,0,18,'#ffffff','#dfe7ef');x.beginPath();x.moveTo(-11,8);x.quadraticCurveTo(0,24,11,8);x.quadraticCurveTo(0,12,-11,8);x.fill();
+    x.fillStyle='#9ad3f0';x.beginPath();x.arc(-8,9,2,0,7);x.arc(8,9,2,0,7);x.fill();
+    g=x.createRadialGradient(-5,-16,2,0,-11,15);g.addColorStop(0,'#ffe2cf');g.addColorStop(1,'#efae86');x.fillStyle=g;x.beginPath();x.arc(0,-11,13,0,7);x.fill();
+    x.strokeStyle='#7a4a2a';x.lineWidth=1.6;x.beginPath();x.moveTo(0,-24);x.quadraticCurveTo(5,-28,3,-21);x.stroke();
+    x.strokeStyle='#3a2416';x.lineWidth=1.5;x.beginPath();x.arc(-5,-12,2.4,Math.PI+.3,-.3);x.moveTo(7.4,-12);x.arc(5,-12,2.4,Math.PI+.3,-.3);x.stroke();
+    x.fillStyle='rgba(240,120,120,.4)';x.beginPath();x.ellipse(-8,-7,2.6,1.6,0,0,7);x.ellipse(8,-7,2.6,1.6,0,0,7);x.fill();
+    x.fillStyle='#ff7fb0';x.beginPath();x.ellipse(0,-5,5,3,0,0,7);x.fill();x.fillStyle='#ffd1e4';x.beginPath();x.arc(0,-5,1.8,0,7);x.fill()}
   x.restore()}
 
 function porcelain(x0,y0,x1,y1){const g=x.createLinearGradient(x0,y0,x1,y1);g.addColorStop(0,'#ffffff');g.addColorStop(.55,'#eef0ee');g.addColorStop(1,'#b9c2c4');return g}
@@ -253,7 +318,7 @@ function drawToilet(px){
 
 function addTxt(px,py,txt,col,size){texts.push({x:px,y:py,txt,col,size:size||30,l:1,rot:(Math.random()-.5)*.25})}
 function burst(px,py,col,n,pow,glow){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,s=Math.random()*(pow||6);bits.push({x:px,y:py,vx:Math.cos(a)*s,vy:Math.sin(a)*s-(pow||6)*.5,l:1,col,r:2+Math.random()*4,glow})}}
-function reset(){poos=[];splats=[];bits=[];flies=[];texts=[];rings=[];score=0;miss=0;combo=0;spawn=0;toiletX=tx=W/2;hud()}
+function reset(){poos=[];hazards=[];hazSpawn=150;splats=[];bits=[];flies=[];texts=[];rings=[];score=0;miss=0;combo=0;spawn=0;toiletX=tx=W/2;hud()}
 function hud(){$('score').textContent=score+(combo>=5?'  ×'+(combo>=10?3:2):'');
   $('lives').textContent='🧻'.repeat(3-miss)+'💩'.repeat(miss);$('cbar').style.width=Math.min(100,combo*10)+'%'}
 function popScore(){const s=$('score');s.classList.add('pop');setTimeout(()=>s.classList.remove('pop'),140)}
@@ -264,19 +329,32 @@ function step(ts){
   if(keys.ArrowLeft||keys.a)tx=toiletX-32;if(keys.ArrowRight||keys.d)tx=toiletX+32;
   tx=Math.max(60*S,Math.min(W-60*S,tx??W/2));toiletX+=(tx-toiletX)*.75;
   squash*=.82;
-  if(running&&(spawn-=ts)<=0){spawn=58-32*(1-Math.exp(-score/150))+Math.random()*24;spawnPoo()}
-  if(!running&&(spawn-=ts)<=0){spawn=25;poos.push({x:Math.random()*W,y:-50,v:2+Math.random()*3,r:Math.random()*6,vr:(Math.random()-.5)*.1,gold:Math.random()<.1,trail:[],deco:1})}
+  if(running&&(spawn-=ts)<=0){const g=Math.log1p(score/200);spawn=Math.max(14,58-32*(1-Math.exp(-score/150))-8*g)+Math.random()*Math.max(10,24-4*g);spawnPoo()}
+  // hazards: rare at first, then more and more of them
+  if(running&&(hazSpawn-=ts)<=0){hazSpawn=Math.max(55,240-55*Math.log1p(score/50))+Math.random()*90;spawnHazard()}
+  if(!running&&(spawn-=ts)<=0){spawn=25;if(Math.random()<.22)spawnHazard(1);else{const k=Math.random();poos.push({x:Math.random()*W,y:-50,v:2+Math.random()*3,r:Math.random()*6,vr:(Math.random()-.5)*.1,gold:Math.random()<.1,size:k<.25?.72:k<.78?1:1.4,trail:[],deco:1})}}
+  for(const h of hazards){h.y+=h.v*ts;h.r+=h.vr*ts;
+    if(h.deco){if(h.y>H+60)h.done=1;continue}
+    if(!h.done&&h.y>CATCH_Y()&&h.y<FLOOR()+6&&Math.abs(h.x-toiletX)<HAZ_W()){h.done=1;const z=HAZ[h.kind],lost=Math.min(score,z.pts);score-=lost;combo=0;squash=1;
+      shake=h.kind==='baby'?26:16;hitstop=5;flash=1;flashCol='230,40,60';
+      burst(toiletX,FLOOR()-60,'235,70,90',30,10);rings.push({x:toiletX,y:FLOOR()-46,r:10,l:1});
+      addTxt(toiletX,FLOOR()-150,z.say+' −'+z.pts,'#ff5a6e',h.kind==='baby'?52:40);
+      if(A)sfx.bad();hud();popScore()}
+    // dodged it: it slips away harmlessly
+    if(!h.done&&h.y>FLOOR()-10){h.done=1;burst(h.x,FLOOR()-10,'255,240,250',14,5,1);
+      if(h.kind==='baby'||h.kind==='fish'){addTxt(h.x,FLOOR()-70,h.kind==='baby'?'PHEW!':'BLUB!','#fff8e6',26);if(A)sfx.phew()}}}
+  hazards=hazards.filter(h=>!h.done);
   for(const p of poos){p.y+=p.v*ts;p.r+=p.vr*ts;p.trail.push([p.x,p.y]);if(p.trail.length>10)p.trail.shift();
     if(p.gold&&Math.random()<.5*ts)bits.push({x:p.x+(Math.random()-.5)*30,y:p.y+(Math.random()-.5)*20,vx:0,vy:-.4,l:.9,col:'255,226,122',r:2+Math.random()*2,glow:1});
     if(p.deco){if(p.y>H+60)p.done=1;continue}
-    if(!p.done&&p.y>CATCH_Y()&&p.y<FLOOR()+6&&Math.abs(p.x-toiletX)<95*S){p.done=1;combo++;catches++;const mult=combo>=10?3:combo>=5?2:1,pts=(p.gold?5:1)*mult;score+=pts;squash=1;zoom=Math.min(.04,zoom+.015);
+    if(!p.done&&p.y>CATCH_Y()&&p.y<FLOOR()+6&&Math.abs(p.x-toiletX)<catchW(p)){p.done=1;combo++;catches++;const mult=combo>=10?3:combo>=5?2:1,pts=(p.gold?5:p.size<1?2:1)*mult;score+=pts;squash=p.size>1?1.4:1;zoom=Math.min(.04,zoom+.015);if(p.size>1)shake=Math.max(shake,7);
       burst(toiletX,FLOOR()-46,p.gold?'255,214,90':'150,215,235',p.gold?60:22,p.gold?13:8,p.gold);rings.push({x:toiletX,y:FLOOR()-46,r:10,l:1});
-      addTxt(toiletX,FLOOR()-140,(p.gold?'GOLDEN! ':yells[Math.random()*yells.length|0]+' ')+'+'+pts,p.gold?'#f2c230':'#fff8e6',p.gold?46:32);
+      addTxt(toiletX,FLOOR()-140,(p.gold?'GOLDEN! ':p.size<1?'TINY! ':p.size>1?'CHONKER! ':yells[Math.random()*yells.length|0]+' ')+'+'+pts,p.gold?'#f2c230':'#fff8e6',p.gold?46:32);
       if(p.gold){hitstop=6;slowmo=40;flash=1;flashCol='242,194,48';shake=8}
       if(combo===5||combo===10||(combo%20===0)){addTxt(W/2,H*.38,combo>=10?'TRIPLE POINTS!':'DOUBLE POINTS!','#f2c230',72);flash=1;flashCol='255,240,200';if(A)sfx.combo()}
       if(A){sfx.plop(Math.min(combo,12));if(p.gold)sfx.gold()}hud();popScore()}
     if(!p.done&&p.y>FLOOR()+6){p.done=1;miss++;combo=0;shake=22;hitstop=4;flash=1;flashCol='120,60,20';
-      splats.push({x:p.x,s:.6+Math.random()*.5,gold:p.gold,g:0,seed:Math.random()*99});burst(p.x,FLOOR(),p.gold?'214,160,30':'107,62,31',36,11);
+      splats.push({x:p.x,s:(.6+Math.random()*.5)*(p.size||1),gold:p.gold,g:0,seed:Math.random()*99});burst(p.x,FLOOR(),p.gold?'214,160,30':'107,62,31',36,11);
       for(let k=0;k<3;k++)flies.push({x:p.x,y:FLOOR()-40,a:Math.random()*7,s:.7+Math.random()*.6,ox:p.x});addTxt(p.x,FLOOR()-80,'SPLAT!','#c86a3a',50);
       if(A){sfx.splat();if(miss<3)setTimeout(sfx.fart,180)}hud();if(miss>=3)end()}}
   poos=poos.filter(p=>!p.done);
@@ -308,16 +386,17 @@ function draw(){
     x.fillStyle='rgba(255,255,255,.45)';x.beginPath();x.ellipse(s.x-12*k,fy-4*k,9*k,2*k,0,0,7);x.fill();
     x.strokeStyle='rgba(120,160,60,.4)';x.lineWidth=3;x.lineCap='round';for(let q=0;q<3;q++){const w=Math.sin(t*.07+q*2+s.seed)*6;x.beginPath();x.moveTo(s.x-14+q*14,fy-14);x.bezierCurveTo(s.x-4+q*14+w,fy-28,s.x-24+q*14-w,fy-44,s.x-14+q*14,fy-60);x.stroke()}}
   // falling-poo floor shadows
-  for(const p of poos){const h=Math.max(0,Math.min(1,p.y/FLOOR()));x.fillStyle=`rgba(0,0,0,${.28*h})`;x.beginPath();x.ellipse(p.x,FLOOR()+8,26*h+4,5*h+1,0,0,7);x.fill()}
+  for(const p of [...poos,...hazards]){const h=Math.max(0,Math.min(1,p.y/FLOOR())),z=p.size||1;x.fillStyle=`rgba(0,0,0,${.28*h})`;x.beginPath();x.ellipse(p.x,FLOOR()+8,(26*h+4)*z,(5*h+1)*z,0,0,7);x.fill()}
   for(const r of rings){x.strokeStyle=`rgba(190,235,250,${r.l})`;x.lineWidth=5*r.l;x.beginPath();x.ellipse(r.x,r.y,r.r*1.7,r.r*.45,0,0,7);x.stroke()}
   drawToilet(toiletX);
   // motion trails and poos
   for(const p of poos){
     x.save();x.globalCompositeOperation=p.gold?'lighter':'source-over';
-    p.trail.forEach(([a,b],i)=>{const k=i/p.trail.length;x.fillStyle=p.gold?`rgba(242,194,48,${k*.35})`:`rgba(255,255,255,${k*.18})`;x.beginPath();x.arc(a,b-8,4+k*12,0,7);x.fill()});
+    p.trail.forEach(([a,b],i)=>{const k=i/p.trail.length;x.fillStyle=p.gold?`rgba(242,194,48,${k*.35})`:`rgba(255,255,255,${k*.18})`;x.beginPath();x.arc(a,b-8,(4+k*12)*(p.size||1),0,7);x.fill()});
     x.restore();
     if(p.gold){x.save();x.globalCompositeOperation='lighter';const g=x.createRadialGradient(p.x,p.y,4,p.x,p.y,70+Math.sin(t*.2)*10);g.addColorStop(0,'rgba(255,210,80,.55)');g.addColorStop(1,'rgba(255,210,80,0)');x.fillStyle=g;x.fillRect(p.x-80,p.y-80,160,160);x.restore()}
-    drawPoo(p.x,p.y,1.35*S,p.gold,Math.sin(p.r)*.4,Math.sin(t*.3+p.x)*.06,!p.deco&&p.y>H*.55)}
+    drawPoo(p.x,p.y,1.35*S*(p.size||1),p.gold,Math.sin(p.r)*.4,Math.sin(t*.3+p.x)*.06,!p.deco&&p.y>H*.55)}
+  for(const h of hazards)drawHazard(h,1.45*S);
   // particles
   for(const b of bits){x.save();if(b.glow)x.globalCompositeOperation='lighter';x.globalAlpha=Math.max(0,b.l);x.fillStyle=`rgb(${b.col})`;x.beginPath();x.arc(b.x,b.y,b.r*(b.glow?1+(1-b.l):1),0,7);x.fill();
     if(!b.glow){x.fillStyle='rgba(255,255,255,.6)';x.beginPath();x.arc(b.x-b.r*.3,b.y-b.r*.3,b.r*.35,0,7);x.fill()}x.restore()}
@@ -361,9 +440,9 @@ function end(){running=false;lastRun={score,catches,ms:Math.round(performance.no
   $('title').textContent='What a mess';$('msg').textContent='You caught '+score+' plops. Best: '+best+'. Grab the mop and go again.';$('go').textContent='Flush and retry';$('overlay').classList.remove('hidden')}
 $('go').onclick=()=>{reset();poos=[];catches=0;runStart=performance.now();running=true;$('update').classList.add('hidden');$('submit').classList.add('hidden');$('board').classList.add('hidden');note('');startMusic();$('overlay').classList.add('hidden');$('go').blur()};
 addEventListener('keydown',e=>{if(!running&&(e.key==='Enter'||e.key===' ')){e.preventDefault();$('go').click()}});
-if(matchMedia('(pointer:coarse)').matches)$('msg').textContent='Drag your finger anywhere to slide the toilet under the falling poos. Golden ones are worth five. Catch them in a row to fill the combo meter. Miss three and the floor\'s ruined.';
+if(matchMedia('(pointer:coarse)').matches)$('msg').textContent='Drag your finger anywhere to slide the toilet under the falling poos. Tiny ones are worth two, golden ones five. Dodge the pads, wipes, goldfish and babies: catching them costs points. Miss three poos and the floor\'s ruined.';
 /* ---------- update check: version.json sits next to the page; never interrupts a run ---------- */
-const VERSION='1.5';let newVer=null;
+const VERSION='1.6';let newVer=null;
 function showUpdate(){if(!newVer||running||!$('update').classList.contains('hidden'))return;$('upmsg').textContent='Version '+newVer+' is out';$('update').classList.remove('hidden')}
 function checkUpdate(){if(location.protocol==='file:')return;fetch('version.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.version&&d.version!==VERSION){newVer=d.version;showUpdate()}}).catch(()=>{})}
 $('upgo').onclick=()=>location.reload();
