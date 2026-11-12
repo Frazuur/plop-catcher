@@ -280,8 +280,9 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:4px}
   <button id="emma" type="button" aria-pressed="false">Emma mode: off</button>
   <ol id="board" class="hidden"></ol>
   <details id="ver">
-    <summary>v2.0.1 · What's new</summary>
+    <summary>v2.1 · What's new</summary>
     <dl>
+      <dt>v2.1 · 12 Nov 2026</dt><dd>The arcade now counts plays, so Dean can see which games people like. It uses a random ID kept on this device and your nickname, nothing else.</dd>
       <dt>v2.0.1 · 12 Nov 2026</dt><dd>Poo Off fix: a round no longer ends the second it starts with one player knocked out before they could move.</dd>
       <dt>v2.0 · 8 Nov 2026</dt><dd>Poo Off: play live against friends. Everyone gets the same poos at the same time, you can see each other's score and lives, and when you're out you can watch the others. Top three get a podium.</dd>
       <dt>v1.9 · 8 Nov 2026</dt><dd>Sixteen toilets and twelve rooms now, including a Dragon Egg, a Disco Loo, Under the Sea and a Volcano Lair. Unlocks now take a lot more playing, so everyone starts fresh: your unlocks are reset, but your best score and the leaderboard stay. Missing a tiny poo now only costs half a toilet roll.</dd>
@@ -1351,7 +1352,7 @@ $('submit').onsubmit=e=>{e.preventDefault();const name=$('name').value.trim();if
     .catch(err=>{note(err.message&&err.message!=='Failed to fetch'?err.message:'Couldn\'t reach the scoreboard. Try again in a moment.');$('send').disabled=false})};
 $('name').addEventListener('keydown',e=>e.stopPropagation());
 let lastRun={score:0,catches:0,ms:0};
-function end(){if(PO.on)return PO.out();running=false;lastRun={score,catches,ms:Math.round(performance.now()-runStart)};
+function end(){if(PO.on)return PO.out();running=false;lastRun={score,catches,ms:Math.round(performance.now()-runStart)};arcEnd(false);
   if(score>0){$('name').value=lastName;$('send').disabled=false;$('submit').classList.remove('hidden');note('')}else{$('submit').classList.add('hidden');note('')}
   loadBoard();if(A)setTimeout(sfx.flush,250);if(score>best){best=score;try{localStorage.plopBest=best}catch(e){}}
   poos=poos.filter(p=>p.deco);
@@ -1361,7 +1362,7 @@ function end(){if(PO.on)return PO.out();running=false;lastRun={score,catches,ms:
   stats.best=Math.max(stats.best,score);checkUnlocks();saveAll();showGot();
   if(runGot.length){burst(W/2,H*.3,'255,214,90',50,11,1);if(A)setTimeout(sfx.unlock,900)}
   $('title').textContent='What a mess';$('msg').textContent='You caught '+score+' plops. Best: '+best+'. Grab the mop and go again.';$('go').textContent='Flush and retry';$('overlay').classList.remove('hidden')}
-$('go').onclick=()=>{if(closetOpen())return;reset();poos=[];catches=0;runGot=[];$('got').classList.add('hidden');runStart=performance.now();running=true;$('update').classList.add('hidden');$('submit').classList.add('hidden');$('board').classList.add('hidden');note('');startMusic();$('overlay').classList.add('hidden');$('go').blur()};
+$('go').onclick=()=>{if(closetOpen())return;reset();poos=[];catches=0;runGot=[];$('got').classList.add('hidden');runStart=performance.now();running=true;arcStart('solo');$('update').classList.add('hidden');$('submit').classList.add('hidden');$('board').classList.add('hidden');note('');startMusic();$('overlay').classList.add('hidden');$('go').blur()};
 // Enter/Space starts a run, unless the closet is open or focus is on another control (Emma, Customise, chips, changelog)
 addEventListener('keydown',e=>{if(PO.on||closetOpen()||e.target.closest?.('button,input,summary,a'))return;if(!running&&(e.key==='Enter'||e.key===' ')){e.preventDefault();$('go').click()}});
 if(matchMedia('(pointer:coarse)').matches)$('msg').textContent='Drag your finger anywhere to slide the toilet under the falling poos. Tiny ones are worth two, golden ones five. Dodge the pads, wipes, goldfish and babies: catching them costs points. Miss three poos and the floor\'s ruined (tiny ones only count half).';
@@ -1372,7 +1373,31 @@ function setEmma(on){emma=on;try{localStorage.plopEmma=on?'1':''}catch(e){}
 $('emma').onclick=()=>setEmma(!emma);
 setEmma(emma);
 /* ---------- update check: version.json sits next to the page; never interrupts a run ---------- */
-const VERSION='2.0.1';let newVer=null;
+const VERSION='2.1';let newVer=null;
+/* Usage counts (see the note on frazuur.github.io): a random id for this browser, a tab session id and the
+   nickname you typed. No fingerprinting. The same snippet is in every arcade page, and it can never break a game. */
+function arcadeTracker(game,ver,url,key){const nop={ev(){},flush(){},onhide:null};try{
+ if(navigator.globalPrivacyControl===true||navigator.doNotTrack==='1')return nop;
+ const rid=()=>{try{return crypto.randomUUID().replace(/-/g,'')}catch(e){let s='';for(let i=0;i<32;i++)s+=(Math.random()*16|0).toString(16);return s}};
+ const ls=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
+ let id=ls('arcadeId');if(!/^[0-9a-f]{32}$/.test(id||'')){id=rid();try{localStorage.setItem('arcadeId',id)}catch(e){}}
+ let sid=null;try{const s=JSON.parse(sessionStorage.getItem('arcadeSess')||'null');if(s&&Date.now()-s.at<18e5&&/^[0-9a-f]{32}$/.test(s.id))sid=s.id}catch(e){}
+ sid=sid||rid();
+ const touch=()=>{try{sessionStorage.setItem('arcadeSess',JSON.stringify({id:sid,at:Date.now()}))}catch(e){}};
+ const nick=()=>{let n=ls('plopName');if(!n)try{n=JSON.parse(ls('splat.name')||'""')}catch(e){}return String(n||'').slice(0,16)};
+ const q=[],T={onhide:null};let tm=0;
+ T.flush=()=>{try{clearTimeout(tm);while(q.length){const b=JSON.stringify({k:key,id,sid,ev:q.splice(0,50)});let ok=false;
+   try{ok=!!navigator.sendBeacon&&navigator.sendBeacon(url,new Blob([b],{type:'text/plain'}))}catch(e){}
+   if(!ok)fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},body:b,keepalive:true}).catch(()=>{})}}catch(e){}};
+ T.ev=(t,o)=>{try{touch();q.push(Object.assign({t,g:game,v:ver,n:nick(),at:Date.now()},o||{}));clearTimeout(tm);tm=setTimeout(T.flush,q.length>=50?0:15000)}catch(e){}};
+ addEventListener('pagehide',ev=>{try{T.onhide&&T.onhide(ev)}catch(e){}T.flush()});
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')T.flush()});
+ touch();return T}catch(e){return nop}}
+const ARC=arcadeTracker('plop',VERSION,API.replace(/\/scores$/,'')+'/events',PLOP_KEY);ARC.ev('visit');
+let arcRun=0,arcMode='solo';
+function arcStart(m){if(arcRun)arcEnd(true);arcRun=performance.now();arcMode=m;ARC.ev('game_start',{m})}
+function arcEnd(quit){if(!arcRun)return;ARC.ev('game_end',{m:arcMode,ms:Math.round(performance.now()-arcRun),s:score,quit:!!quit});arcRun=0;ARC.flush()}
+ARC.onhide=ev=>{if(!(ev&&ev.persisted))arcEnd(true)};// bfcache (app switch): the run may resume, keep it open
 function showUpdate(){if(!newVer||running||!$('update').classList.contains('hidden'))return;$('upmsg').textContent='Version '+newVer+' is out';$('update').classList.remove('hidden')}
 function checkUpdate(){if(location.protocol==='file:')return;fetch('version.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.version&&d.version!==VERSION){newVer=d.version;showUpdate()}}).catch(()=>{})}
 $('upgo').onclick=()=>location.reload();
@@ -1399,10 +1424,10 @@ function HS(){return PO.on&&running?PO.vs():score}
 PO.ts=(ts,i)=>{if(!(PO.on&&running))return ts;const c=PO.clock(),d=c-PO.last[i];PO.last[i]=c;return Math.max(0,d)};
 // keep the overshoot of a late frame so spawn times stay on the shared schedule (solo play: 0, unchanged)
 PO.carry=v=>PO.on&&running?Math.max(-120,v):0;
-PO.begin=()=>{reset();poos=[];catches=0;runGot=[];PO.inRound=true;runStart=performance.now();PO.st={};PO.cnt={};PO.last=[0,0];// timers count from the server's start time, so a late start catches up
+PO.begin=()=>{reset();poos=[];catches=0;runGot=[];PO.inRound=true;runStart=performance.now();arcStart('pooff');PO.st={};PO.cnt={};PO.last=[0,0];// timers count from the server's start time, so a late start catches up
   PO.alive=true;PO.spec=false;running=true;$('update').classList.add('hidden');startMusic();poUi();poTick()};
 // unlock stats: catches, golds, dodges and splats count live (guarded by running); a round counts once as a run here
-function poStats(){if(!PO.inRound)return;PO.inRound=false;stats.runs++;if(score===0)stats.zeros++;stats.points+=score;stats.best=Math.max(stats.best,score);
+function poStats(){if(!PO.inRound)return;PO.inRound=false;arcEnd(false);stats.runs++;if(score===0)stats.zeros++;stats.points+=score;stats.best=Math.max(stats.best,score);
   const today=new Date().toDateString();if(lastDay!==today){stats.days++;lastDay=today;LS.set(SK('Day'),today)}checkUnlocks();saveAll()}
 PO.out=()=>{poStats();running=false;PO.alive=false;poos=poos.filter(p=>p.deco);hazards=[];PO.specAt=Date.now()+1600;addTxt(W/2,H*.4,'YOU\'RE OUT!','#ff5a6e',64);
   if(A)setTimeout(sfx.flush,250);poTick()};
