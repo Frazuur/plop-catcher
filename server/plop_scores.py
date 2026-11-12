@@ -219,6 +219,7 @@ class H(BaseHTTPRequestHandler):
 # Phases: lobby -> countdown -> playing -> results -> lobby. Clients poll /pooff/tick about 5x a second.
 PO_MAX, PO_STALE, PO_COUNT_MS, PO_RESULTS_MS, PO_SNAP, PO_BODY = 8, 6.0, 3000, 12000, 4096, 6144
 PO_STALE = float(os.environ.get("PO_STALE", PO_STALE))  # tests on a loaded machine only
+PO_GRACE_MS = 2000  # nobody can be knocked out this early in a round (see the tick handler)
 PO_MATCH_MS = int(os.environ.get("PO_MATCH_MS", 20 * 60 * 1000))  # a match never runs past 20 minutes
 po_lock = threading.Lock()
 room = {"phase": "lobby", "seed": 0, "startAt": 0, "endAt": 0, "players": {}, "n": 0}
@@ -358,6 +359,11 @@ def po_handle(act, d):
                     raise ValueError
             except ValueError:
                 return 400, {"error": "That didn't look right."}
+            if elapsed < PO_GRACE_MS and (d["alive"] is False or lives <= 0):
+                # an older page that hasn't started its round yet still says "not alive" from the lobby (with last
+                # round's catches): ignore it, or the round ends the moment it begins. Nobody can really lose
+                # three lives this fast, and a real forfeit (hidden tab) still counts once the grace is over.
+                return 200, po_state(now, p, None)
             p.update(score=score, catches=catches, lives=lives)
             if d["alive"] is False or lives <= 0:
                 p.update(alive=False, lives=0, outAt=now)

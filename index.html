@@ -280,8 +280,9 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:4px}
   <button id="emma" type="button" aria-pressed="false">Emma mode: off</button>
   <ol id="board" class="hidden"></ol>
   <details id="ver">
-    <summary>v2.0 · What's new</summary>
+    <summary>v2.0.1 · What's new</summary>
     <dl>
+      <dt>v2.0.1 · 12 Nov 2026</dt><dd>Poo Off fix: a round no longer ends the second it starts with one player knocked out before they could move.</dd>
       <dt>v2.0 · 8 Nov 2026</dt><dd>Poo Off: play live against friends. Everyone gets the same poos at the same time, you can see each other's score and lives, and when you're out you can watch the others. Top three get a podium.</dd>
       <dt>v1.9 · 8 Nov 2026</dt><dd>Sixteen toilets and twelve rooms now, including a Dragon Egg, a Disco Loo, Under the Sea and a Volcano Lair. Unlocks now take a lot more playing, so everyone starts fresh: your unlocks are reset, but your best score and the leaderboard stay. Missing a tiny poo now only costs half a toilet roll.</dd>
       <dt>v1.8 · 8 Nov 2026</dt><dd>Unlocks! Ten toilets and seven rooms to earn, from a training potty to a solid gold throne, a beach, a castle and a space station. Tap Customise to pick yours and see what's next.</dd>
@@ -1371,7 +1372,7 @@ function setEmma(on){emma=on;try{localStorage.plopEmma=on?'1':''}catch(e){}
 $('emma').onclick=()=>setEmma(!emma);
 setEmma(emma);
 /* ---------- update check: version.json sits next to the page; never interrupts a run ---------- */
-const VERSION='2.0';let newVer=null;
+const VERSION='2.0.1';let newVer=null;
 function showUpdate(){if(!newVer||running||!$('update').classList.contains('hidden'))return;$('upmsg').textContent='Version '+newVer+' is out';$('update').classList.remove('hidden')}
 function checkUpdate(){if(location.protocol==='file:')return;fetch('version.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.version&&d.version!==VERSION){newVer=d.version;showUpdate()}}).catch(()=>{})}
 $('upgo').onclick=()=>location.reload();
@@ -1432,7 +1433,9 @@ function poSend(path,body){const ctl=new AbortController(),tm=setTimeout(()=>ctl
     .finally(()=>clearTimeout(tm))}
 function poRate(){return PO.fails?1000:PO.phase==='countdown'||PO.phase==='playing'?200:PO.phase==='results'?1000:600}
 function poTick(){if(!PO.id)return;if(PO.busy){PO.again=true;return}clearTimeout(PO.timer);PO.busy=true;
-  const b={id:PO.id,token:PO.token,score,lives:Math.max(0,3-miss),catches,alive:PO.alive};
+  // the server flips to playing a moment before this tab starts its round: until then we're still in, with full lives
+  const wait=PO.inMatch&&(PO.phase==='countdown'||PO.phase==='playing')&&PO.began!==PO.startAt;
+  const b={id:PO.id,token:PO.token,score:wait?0:score,lives:wait?3:Math.max(0,3-miss),catches:wait?0:catches,alive:wait||PO.alive};
   if(running&&PO.alive)b.snap=poSnap();if(PO.watch&&PO.phase==='playing')b.watch=PO.watch;
   const t0=Date.now();
   poSend('tick',b).then(d=>{if(!Array.isArray(d.players)||typeof d.now!=='number')throw new Error('bad reply');const t1=Date.now(),o=d.now-(t0+t1)/2;PO.off=PO.fails===0&&PO.off?PO.off*.8+o*.2:o;PO.fails=0;poNet(false);poState(d)})
